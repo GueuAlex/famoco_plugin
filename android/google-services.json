@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "791947429708",
+    "project_id": "famoco-finger-print-plugin",
+    "storage_bucket": "famoco-finger-print-plugin.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:791947429708:android:8df3f76c9fb3b21594f1e9",
+        "android_client_info": {
+          "package_name": "com.example.famoco_finger_print"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1qObYQ9uz85KSN2lONXNn0_Hcd6VRi8I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
