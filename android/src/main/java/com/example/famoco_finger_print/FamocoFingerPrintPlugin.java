@@ -1,19 +1,25 @@
 package com.example.famoco_finger_print;
-import com.morpho.morphosmart.sdk.MorphoDevice;
-import com.morpho.morphosmart.sdk.FingerNumber;
-import com.morpho.morphosmart.sdk.TemplateType;
-import com.morpho.morphosmart.sdk.TemplateFVPType;
-import com.morpho.morphosmart.sdk.EnrollmentType;
-import com.morpho.morphosmart.sdk.LatentDetection;
-import com.morpho.morphosmart.sdk.Coder;
-import com.morpho.morphosmart.sdk.DetectionMode;
-import com.morpho.morphosmart.sdk.CompressionAlgorithm;
-import com.morpho.morphosmart.sdk.TemplateList;
-import com.morpho.morphosmart.sdk.Template;
-import com.morpho.morphosmart.sdk.ErrorCodes;
 
+
+import static com.morpho.morphosmart.sdk.CompressionAlgorithm.MORPHO_NO_COMPRESS;
+import static com.morpho.morphosmart.sdk.TemplateFVPType.MORPHO_NO_PK_FVP;
+
+import android.os.Handler;
 
 import androidx.annotation.NonNull;
+import androidx.lifecycle.Observer;
+
+import com.morpho.morphosmart.sdk.Coder;
+import com.morpho.morphosmart.sdk.DetectionMode;
+import com.morpho.morphosmart.sdk.EnrollmentType;
+import com.morpho.morphosmart.sdk.ErrorCodes;
+import com.morpho.morphosmart.sdk.LatentDetection;
+import com.morpho.morphosmart.sdk.MorphoDevice;
+import com.morpho.morphosmart.sdk.MorphoWakeUpMode;
+import com.morpho.morphosmart.sdk.TemplateFVPType;
+import com.morpho.morphosmart.sdk.TemplateList;
+import com.morpho.morphosmart.sdk.TemplateType;
+
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.shim.ShimPluginRegistry;
 import io.flutter.plugin.common.MethodCall;
@@ -22,6 +28,23 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 
 public class FamocoFingerPrintPlugin implements FlutterPlugin, MethodCallHandler {
     private MethodChannel channel;
+
+
+    /**
+     * Handler to update UI Thread
+     */
+    private Handler mHandler;
+
+   /**
+         * Morpho Device Capture Configuration
+         */
+        private final String ID_USER = "test";
+        private final TemplateType TEMPLATE_TYPE = TemplateType.MORPHO_PK_ISO_FMC_CS;
+        private final TemplateFVPType TEMPLATE_FVP_TYPE = MORPHO_NO_PK_FVP;
+        private final EnrollmentType ENROLL_TYPE = EnrollmentType.ONE_ACQUISITIONS;
+        private final int MAX_SIZE_TEMPLATE = 255;
+        private final LatentDetection LATENT_DETECTION = LatentDetection.LATENT_DETECT_ENABLE;
+        private final int NB_FINGER = 1;
 
     // Vous pouvez également ajouter d'autres membres de la classe et des méthodes ici.
 
@@ -36,69 +59,98 @@ public class FamocoFingerPrintPlugin implements FlutterPlugin, MethodCallHandler
         // Nettoyez les ressources ou effectuez des actions de nettoyage ici si nécessaire.
     }
 
+
     @Override
-    public void onMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
-        if (call.method.equals("captureFinger")) {
-            String message = captureFinger();
-            result.success(message);
+    public void onMethodCall(MethodCall call, MethodChannel.Result result) {
+
+       
+
+        if (call.method.equals("captureFingerprint")) {
+            mHandler = new Handler();
+            MorphoDevice morphoDevice = new MorphoDevice();
+
+            // Add the code snippet to capture the fingerprint here
+            // Replace 'morphoDevice' with Famoco-specific objects
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    ProcessInfo processInfo = ProcessInfo.getInstance();
+                    final int timeout = processInfo.getTimeout();
+                    TemplateList templateList = new TemplateList();
+
+                    int acquisitionThreshold = (processInfo.isFingerprintQualityThreshold()) ?
+                            processInfo.getFingerprintQualityThresholdvalue() : 0;
+                    int advancedSecurityLevelsRequired = (processInfo.isAdvancedSecLevCompReq()) ?
+                            1 : 0xFF;
+
+                    int callbackCmd = processInfo.getCallbackCmd();
+                    Coder coderChoice = processInfo.getCoder();
+
+                    int detectModeChoice = DetectionMode.MORPHO_ENROLL_DETECT_MODE.getValue();
+                    if (processInfo.isForceFingerPlacementOnTop())
+                        detectModeChoice |= DetectionMode.MORPHO_FORCE_FINGER_ON_TOP_DETECT_MODE.getValue();
+                    if (processInfo.isWakeUpWithLedOff())
+                        detectModeChoice |= MorphoWakeUpMode.MORPHO_WAKEUP_LED_OFF.getCode();
+
+                    int ret = morphoDevice.setStrategyAcquisitionMode(processInfo.getStrategyAcquisitionMode());
+                    if (ret == ErrorCodes.MORPHO_OK) {
+
+                        final Observer observer = null;
+
+                        ret = morphoDevice.capture(timeout, acquisitionThreshold, advancedSecurityLevelsRequired,
+                                NB_FINGER,
+                                TEMPLATE_TYPE, TEMPLATE_FVP_TYPE, MAX_SIZE_TEMPLATE, ENROLL_TYPE,
+                                LATENT_DETECTION, coderChoice, detectModeChoice,
+                                MORPHO_NO_COMPRESS, 0, templateList, callbackCmd, null);
+                    }
+
+                    processInfo.setCommandBioStart(false);
+
+                    //MorphoUtils.storeFFDLogs(morphoDevice);
+
+                    if (ret == ErrorCodes.MORPHO_OK) {
+                        //exportFVP(templateList);
+                        //exportFP(templateList);
+
+                        // Assuming fingerprint data is stored in 'templateList' or a similar object
+                        // Convert the fingerprint data to a format suitable for Flutter
+                        String fingerprintData = convertFingerprintDataToString(templateList);
+
+                        // Send the captured fingerprint data back to the Flutter app
+                        mHandler.post(new Runnable() {
+                            @Override
+                            public synchronized void run() {
+                                result.success(fingerprintData);
+                            }
+                        });
+                    } else {
+                        // Handle errors and return an error message
+                        mHandler.post(new Runnable() {
+                            @Override
+                            public synchronized void run() {
+                                result.error("FINGERPRINT_CAPTURE_ERROR", "Failed to capture fingerprint", null);
+                            }
+                        });
+                    }
+                }
+            }).start();
         } else {
             result.notImplemented();
         }
     }
-    private void initializeFingerprints() {
-        
+
+    // Function to convert fingerprint data to a format suitable for Flutter
+    private String convertFingerprintDataToString(TemplateList templateList) {
+        // Convert the fingerprint data to a string, format it as needed
+        // Return the formatted fingerprint data as a string
+        return templateList.toString(); // Modify this to return the actual data
     }
-
-    private String getStringFromPlugin() {
-        return "Ceci est un message provenant du plugin FamocoFingerPrintPlugin";
-    }
-
-    private  String captureFinger() {
-        MorphoDevice m = new MorphoDevice();
-        TemplateType templateType = TemplateType.MORPHO_PK_COMP;
-        TemplateFVPType templateFVPType = TemplateFVPType.MORPHO_PK_FVP;
-        EnrollmentType enrollmentType = EnrollmentType.THREE_ACQUISITIONS;
-        LatentDetection latentDetection = LatentDetection.LATENT_DETECT_ENABLE;
-        Coder coderChoice = Coder.MORPHO_MSO_V9_CODER;
-        Template template = new Template();
-        template.setTemplateFVPType(TemplateFVPType.MORPHO_PK_FVP);
-        template.setTemplateType(TemplateType.MORPHO_PK_COMP);
-
-        DetectionMode detectionMode = DetectionMode.MORPHO_DEFAULT_DETECT_MODE;
-        CompressionAlgorithm compressionAlgorithm = CompressionAlgorithm.MORPHO_COMPRESS_V1;
-        TemplateList templateList = new TemplateList();
-        templateList.putTemplate(template);
+   
 
 
-      int resutl =   m.capture(
-                0,
-                0,
-                0,
-                1,
-                template.getTemplateType(),
-                template.getTemplateFVPType(),
-                1,
-                enrollmentType,
-                latentDetection,
-                coderChoice,
-                2,
-                compressionAlgorithm,
-                0,
-                templateList,
-                0,
-                null
-                );
-      if (resutl == ErrorCodes.MORPHO_OK || resutl == 0){
-          return    templateList.getTemplate(0).getData().toString();
 
-      }else {
-          String message = ErrorCodes.getError(resutl, resutl);
-          return "Le code d'erreur est: " + resutl + "\n Le message associé est : " + message;
 
-      }
-
-       //return m.getUserAreaData();
-    }
 
     
     

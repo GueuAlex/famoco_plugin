@@ -6,7 +6,7 @@ class FamocoFingerPrintPlugin {
   static Future<String> getStringFromPlugin() async {
     try {
       final String fingerprintData =
-          await _channel.invokeMethod('captureFinger');
+          await _channel.invokeMethod('captureFingerprint');
       return fingerprintData;
     } catch (e) {
       return 'Erreur lors de l\'obtention des données d\'empreintes: $e';
